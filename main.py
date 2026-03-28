@@ -12,14 +12,14 @@ import requests
 from dotenv import load_dotenv
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
-from openai import OpenAI
+from google import genai
 
 load_dotenv()
 
 LINE_CHANNEL_SECRET = os.getenv("LINE_CHANNEL_SECRET", "")
 LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN", "")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3-flash-preview")
 SYSTEM_PROMPT = os.getenv(
     "SYSTEM_PROMPT",
     "你是使用者的 LINE 私人 AI 管家。請用繁體中文，簡潔、實用、可靠的方式回答。"
@@ -33,11 +33,11 @@ if not LINE_CHANNEL_SECRET:
     raise RuntimeError("Missing LINE_CHANNEL_SECRET")
 if not LINE_CHANNEL_ACCESS_TOKEN:
     raise RuntimeError("Missing LINE_CHANNEL_ACCESS_TOKEN")
-if not OPENAI_API_KEY:
-    raise RuntimeError("Missing OPENAI_API_KEY")
+if not GEMINI_API_KEY:
+    raise RuntimeError("Missing GEMINI_API_KEY")
 
-app = FastAPI(title="LINE Private AI Concierge")
-client = OpenAI(api_key=OPENAI_API_KEY)
+app = FastAPI(title="LINE Private AI Concierge (Gemini)")
+client = genai.Client(api_key=GEMINI_API_KEY)
 
 
 @contextmanager
@@ -90,7 +90,6 @@ def clear_history(user_id: str) -> None:
 
 
 def get_recent_history(user_id: str, max_turns: int = MAX_HISTORY_TURNS) -> List[Dict[str, str]]:
-    # 每一輪最多 user+assistant 各一則，因此抓兩倍數量
     limit = max_turns * 2
     with get_db() as conn:
         rows = conn.execute(
@@ -107,12 +106,17 @@ def get_recent_history(user_id: str, max_turns: int = MAX_HISTORY_TURNS) -> List
     return [{"role": row["role"], "content": row["content"]} for row in rows]
 
 
-def build_model_input(user_text: str, history: List[Dict[str, str]]) -> List[Dict[str, Any]]:
-    messages: List[Dict[str, Any]] = [{"role": "system", "content": SYSTEM_PROMPT}]
-    for item in history:
-        messages.append({"role": item["role"], "content": item["content"]})
-    messages.append({"role": "user", "content": user_text})
-    return messages
+def build_prompt(user_text: str, history: List[Dict[str, str]]) -> str:
+    lines = [f"系統規則：{SYSTEM_PROMPT}", ""]
+    if history:
+        lines.append("以下是最近對話紀錄：")
+        for item in history:
+            speaker = "使用者" if item["role"] == "user" else "助理"
+            lines.append(f"{speaker}：{item['content']}")
+        lines.append("")
+    lines.append(f"現在使用者說：{user_text}")
+    lines.append("請直接回覆使用者。")
+    return "\n".join(lines)
 
 
 def generate_ai_reply(user_id: str, user_text: str) -> str:
@@ -131,16 +135,16 @@ def generate_ai_reply(user_id: str, user_text: str) -> str:
         return "已清除這個帳號的近期對話記憶。"
 
     history = get_recent_history(user_id)
-    model_input = build_model_input(text, history)
+    prompt = build_prompt(text, history)
 
-    response = client.responses.create(
-        model=OPENAI_MODEL,
-        input=model_input,
+    response = client.models.generate_content(
+        model=GEMINI_MODEL,
+        contents=prompt,
     )
 
-    output_text = getattr(response, "output_text", None)
+    output_text = getattr(response, "text", None)
     if not output_text:
-        raise RuntimeError("OpenAI returned empty output_text")
+        raise RuntimeError("Gemini returned empty text")
 
     reply_text = output_text.strip()
     save_message(user_id, "user", text)
@@ -174,7 +178,7 @@ def on_startup() -> None:
 
 @app.get("/")
 def root() -> Dict[str, str]:
-    return {"status": "ok", "service": "line-private-ai-concierge"}
+    return {"status": "ok", "service": "line-private-ai-concierge-gemini"}
 
 
 @app.get("/healthz")
@@ -216,9 +220,3 @@ async def webhook(request: Request, x_line_signature: Optional[str] = Header(def
                 print(f"Failed to reply to LINE: {exc}")
 
     return JSONResponse({"ok": True})
-
-
-if __name__ == "__main__":
-    import uvicorn
-
-    uvicorn.run("main:app", host="0.0.0.0", port=PORT, reload=True)

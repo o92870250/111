@@ -1,31 +1,29 @@
-# LINE 私人 AI 管家（FastAPI / Python）
+# LINE 私人 AI 管家（Gemini 免費版 / FastAPI / Python）
 
 這是一個可直接部署的最小範例：
 - 接收 LINE Webhook
 - 驗證 `X-Line-Signature`
-- 將文字訊息送到 OpenAI Responses API
+- 將文字訊息送到 Gemini API
 - 回覆到 LINE 聊天室
 - 使用 SQLite 保存每位使用者最近對話記憶
 
-## 1. 建立 LINE Messaging API Channel
+## 1. 你要準備的東西
 
-到 LINE Developers 建立：
-1. Provider
-2. Messaging API channel
-3. 取得：
+1. LINE Developers 的：
    - `Channel secret`
    - `Channel access token`
+2. Google AI Studio 的 API key
 
-官方文件：
-- Messaging API 概覽：<https://developers.line.biz/en/services/messaging-api/>
-- 接收 webhook 與驗簽：<https://developers.line.biz/en/docs/messaging-api/receiving-messages/>
-- Reply message：<https://developers.line.biz/en/docs/messaging-api/sending-messages/>
+## 2. 環境變數
 
-## 2. 準備 OpenAI API Key
+把 `.env.example` 複製成 `.env`，然後填入：
 
-建立 OpenAI API key，填入環境變數 `OPENAI_API_KEY`。
-本專案呼叫的是 OpenAI 的 Responses API。
-官方參考：<https://platform.openai.com/docs/api-reference/responses>
+```env
+LINE_CHANNEL_SECRET=你的_LINE_CHANNEL_SECRET
+LINE_CHANNEL_ACCESS_TOKEN=你的_LINE_CHANNEL_ACCESS_TOKEN
+GEMINI_API_KEY=你的_Google_AI_Studio_API_KEY
+GEMINI_MODEL=gemini-3-flash-preview
+```
 
 ## 3. 本機執行
 
@@ -34,11 +32,11 @@ python -m venv .venv
 source .venv/bin/activate   # Windows 請改用 .venv\Scripts\activate
 pip install -r requirements.txt
 cp .env.example .env
-python main.py
+uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
 啟動後可測試：
-- `GET /` 
+- `GET /`
 - `GET /healthz`
 
 ## 4. 用 ngrok 對外測試
@@ -66,7 +64,7 @@ https://你的網域/webhook
 4. 在 Render 後台填入：
    - `LINE_CHANNEL_SECRET`
    - `LINE_CHANNEL_ACCESS_TOKEN`
-   - `OPENAI_API_KEY`
+   - `GEMINI_API_KEY`
 5. 部署完成後，把 Render 網址設成 LINE Webhook URL
 
 ## 6. 指令
@@ -75,55 +73,14 @@ https://你的網域/webhook
 - `/help`：顯示說明
 - `/reset`：清除該使用者最近對話記憶
 
-## 7. 專案結構
+## 7. 你最需要改的地方
 
-```text
-.
-├── main.py
-├── requirements.txt
-├── .env.example
-├── render.yaml
-└── README.md
-```
+如果你是從 OpenAI 版改過來，請確認：
+- Render 裡面已經沒有舊的 `OPENAI_API_KEY`
+- 新增的是 `GEMINI_API_KEY`
+- 模型名稱是 `gemini-3-flash-preview`
 
-## 8. 安全與實務建議
-
-### 不要忽略 webhook 驗簽
-LINE 官方建議在收到 webhook 時，驗證 `X-Line-Signature`，確認請求未被竄改。
-
-### 不要把長期記憶直接塞在 prompt
-現在範例只存近期對話。真正要做私人 AI 管家，建議把：
-- 待辦
-- 提醒
-- 客製偏好
-- 家庭資訊
-- 工作專案資訊
-
-拆成獨立資料表或外部資料庫，不要全丟在對話歷史裡。
-
-### 加上白名單或使用者綁定
-若這是你的私人管家，建議至少加：
-- 僅允許特定 LINE userId
-- 帳號綁定
-- 管理員模式
-
-### 回覆時間
-LINE reply token 有效期有限，若未來流程會變長，建議：
-- webhook 先快速回 200
-- 背景工作處理
-- 再改用 push message 回覆
-
-## 9. 下一步建議
-
-你可以在這份最小範例上再加：
-- Google Calendar 行程查詢
-- Gmail 摘要
-- Notion / Google Sheets 記帳
-- 定時提醒
-- 圖文選單（Rich Menu）
-- Flex Message 卡片介面
-
-## 10. 常見錯誤
+## 8. 常見錯誤
 
 ### `Invalid signature`
 通常是：
@@ -135,12 +92,10 @@ LINE reply token 有效期有限，若未來流程會變長，建議：
 - `LINE_CHANNEL_ACCESS_TOKEN` 錯了
 - Token 過期或貼錯 channel
 
-### OpenAI 回覆失敗
+### Gemini 回覆失敗
 通常是：
-- `OPENAI_API_KEY` 錯誤
+- `GEMINI_API_KEY` 錯誤
 - 模型名稱不可用
-- 帳戶配額或權限問題
+- 你的 Google AI Studio key 沒貼完整
 
----
-
-這個範例刻意保持精簡，方便你先部署成功，再逐步加功能。
+這個版本刻意保持精簡，方便你先部署成功，再逐步加功能。

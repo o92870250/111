@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: line-private-ai-concierge
+    name: line-private-ai-concierge-gemini
     env: python
     plan: free
     buildCommand: pip install -r requirements.txt
@@ -11,10 +11,10 @@ services:
         sync: false
       - key: LINE_CHANNEL_ACCESS_TOKEN
         sync: false
-      - key: OPENAI_API_KEY
+      - key: GEMINI_API_KEY
         sync: false
-      - key: OPENAI_MODEL
-        value: gpt-4.1-mini
+      - key: GEMINI_MODEL
+        value: gemini-3-flash-preview
       - key: SYSTEM_PROMPT
         value: 你是使用者的 LINE 私人 AI 管家。請用繁體中文，簡潔、實用、可靠的方式回答。如果資訊不足就直接說明，避免瞎猜。
       - key: MAX_HISTORY_TURNS
