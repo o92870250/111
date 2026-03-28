@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: line-private-ai-concierge
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /healthz
+    envVars:
+      - key: LINE_CHANNEL_SECRET
+        sync: false
+      - key: LINE_CHANNEL_ACCESS_TOKEN
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-4.1-mini
+      - key: SYSTEM_PROMPT
+        value: 你是使用者的 LINE 私人 AI 管家。請用繁體中文，簡潔、實用、可靠的方式回答。如果資訊不足就直接說明，避免瞎猜。
+      - key: MAX_HISTORY_TURNS
+        value: "10"
+      - key: DATABASE_PATH
+        value: ./bot.db
